@@ -38,8 +38,13 @@ async def run_scrape(job_id: str, url: str):
     try:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(
-                headless=False,
-                args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
+                headless=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--window-size=1280,900",
+                ],
             )
             context = await browser.new_context(
                 viewport={"width": 1280, "height": 900},
@@ -49,11 +54,19 @@ async def run_scrape(job_id: str, url: str):
                     "Chrome/124.0.0.0 Safari/537.36"
                 ),
                 locale="en-US",
+                java_script_enabled=True,
             )
             page = await context.new_page()
-            await page.add_init_script(
-                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-            )
+            # Stealth patches — mask all common headless detection signals
+            await page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});
+                Object.defineProperty(navigator, 'languages', {get: () => ['en-US','en']});
+                window.chrome = {runtime: {}};
+                Object.defineProperty(navigator, 'permissions', {
+                    get: () => ({ query: (p) => Promise.resolve({state: 'granted'}) })
+                });
+            """)
 
             captured: dict[int, bytes] = {}
 
