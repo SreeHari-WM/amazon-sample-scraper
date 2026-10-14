@@ -86,20 +86,71 @@ async def resolve_and_open(page, url: str):
 async def scrape_reader(reader_page, output_dir: Path, captured: dict):
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Wait for any remaining images to finish loading
+    # Wait for the initial burst of images to load
     await reader_page.wait_for_timeout(5_000)
 
-    # DOM fallback: pick up any img src URLs not captured via interception
+    # Locate the reader iframe
     reader_frame = None
+    iframe_elem = None
     for sel in ['iframe[src*="read.amazon"]', 'iframe[id*="kindle"]', '#KindleReaderIFrame']:
         try:
             elem = await reader_page.query_selector(sel)
             if elem:
+                iframe_elem = elem
                 reader_frame = await elem.content_frame()
+                print(f"[+] Found reader iframe ({sel})")
                 break
         except Exception:
             continue
 
+    # ------------------------------------------------------------------ #
+    # Navigate through all pages to trigger lazy-loaded images
+    # ------------------------------------------------------------------ #
+    async def advance():
+        # Click the right portion of the iframe to go to next page
+        if iframe_elem:
+            try:
+                box = await iframe_elem.bounding_box()
+                if box:
+                    await reader_page.mouse.click(
+                        box["x"] + box["width"] * 0.75,
+                        box["y"] + box["height"] * 0.5,
+                    )
+                    return
+            except Exception:
+                pass
+        # Fallback: dispatch ArrowRight inside the frame
+        if reader_frame:
+            try:
+                await reader_frame.evaluate("""() => {
+                    document.dispatchEvent(new KeyboardEvent('keydown',
+                        {key:'ArrowRight', keyCode:39, bubbles:true}));
+                }""")
+            except Exception:
+                pass
+
+    print("[+] Navigating to load all pages...")
+    stalled = 0
+    prev_count = len(captured)
+
+    for _ in range(200):  # generous upper bound
+        await advance()
+        await reader_page.wait_for_timeout(800)
+
+        if len(captured) > prev_count:
+            stalled = 0
+            prev_count = len(captured)
+        else:
+            stalled += 1
+            # After 8 consecutive advances with no new image, assume we're done
+            if stalled >= 8:
+                break
+
+    print(f"[+] Navigation complete — {len(captured)} pages intercepted")
+
+    # ------------------------------------------------------------------ #
+    # DOM fallback: download any img src URLs not caught by interception
+    # ------------------------------------------------------------------ #
     if reader_frame:
         try:
             srcs = await reader_frame.evaluate("""() =>
@@ -107,8 +158,7 @@ async def scrape_reader(reader_page, output_dir: Path, captured: dict):
                     .filter(img => /Page \\d+/.test(img.alt) && img.src.includes('cloudfront'))
                     .map(img => img.src)
             """)
-            print(f"[+] Found {len(srcs)} img elements in DOM")
-
+            missing = []
             api_ctx = reader_page.context.request
             for src in srcs:
                 m = re.search(r"\.S(\d{3})\.", src)
@@ -117,17 +167,20 @@ async def scrape_reader(reader_page, output_dir: Path, captured: dict):
                 pn = int(m.group(1))
                 if pn in captured:
                     continue
-                try:
-                    resp = await api_ctx.get(src)
-                    if resp.ok:
-                        captured[pn] = await resp.body()
-                        print(f"[+] Downloaded page {pn} ({len(captured[pn])//1024} KB)")
-                    else:
-                        print(f"[!] HTTP {resp.status} for page {pn}")
-                except Exception as e:
-                    print(f"[!] Could not download page {pn}: {e}")
+                missing.append((pn, src))
+
+            if missing:
+                print(f"[+] Downloading {len(missing)} pages missed by interception...")
+                for pn, src in missing:
+                    try:
+                        resp = await api_ctx.get(src)
+                        if resp.ok:
+                            captured[pn] = await resp.body()
+                            print(f"[+] Downloaded page {pn} ({len(captured[pn])//1024} KB)")
+                    except Exception as e:
+                        print(f"[!] Could not download page {pn}: {e}")
         except Exception as e:
-            print(f"[!] DOM image scan failed: {e}")
+            print(f"[!] DOM scan failed: {e}")
 
     if not captured:
         print("[!] No pages captured")
