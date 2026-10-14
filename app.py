@@ -6,9 +6,13 @@ Run: uvicorn app:app --reload
 import asyncio
 import io
 import re
+import sys
 import uuid
 import zipfile
 from pathlib import Path
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
