@@ -17,17 +17,8 @@
       padding: 40px 16px;
     }
 
-    h1 {
-      font-size: 1.6rem;
-      color: #111;
-      margin-bottom: 8px;
-    }
-
-    .subtitle {
-      color: #6b7280;
-      font-size: 0.9rem;
-      margin-bottom: 32px;
-    }
+    h1 { font-size: 1.6rem; color: #111; margin-bottom: 6px; }
+    .subtitle { color: #6b7280; font-size: 0.9rem; margin-bottom: 32px; }
 
     .card {
       background: white;
@@ -35,13 +26,10 @@
       box-shadow: 0 1px 4px rgba(0,0,0,0.1);
       padding: 28px;
       width: 100%;
-      max-width: 600px;
+      max-width: 800px;
     }
 
-    .input-row {
-      display: flex;
-      gap: 10px;
-    }
+    .input-row { display: flex; gap: 10px; }
 
     input[type="text"] {
       flex: 1;
@@ -52,23 +40,26 @@
       outline: none;
       transition: border-color 0.15s;
     }
-
     input[type="text"]:focus { border-color: #6366f1; }
 
-    button {
-      padding: 10px 20px;
-      background: #6366f1;
-      color: white;
+    .btn {
+      padding: 10px 18px;
       border: none;
       border-radius: 8px;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background 0.15s, opacity 0.15s;
       white-space: nowrap;
     }
-
-    button:hover { background: #4f46e5; }
-    button:disabled { background: #a5b4fc; cursor: not-allowed; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary   { background: #6366f1; color: white; }
+    .btn-primary:hover:not(:disabled)  { background: #4f46e5; }
+    .btn-success   { background: #16a34a; color: white; }
+    .btn-success:hover:not(:disabled)  { background: #15803d; }
+    .btn-outline   { background: white; color: #374151; border: 1px solid #d1d5db; }
+    .btn-outline:hover:not(:disabled)  { background: #f9fafb; }
+    .btn-danger    { background: #dc2626; color: white; }
+    .btn-danger:hover:not(:disabled)   { background: #b91c1c; }
 
     #status-box {
       margin-top: 20px;
@@ -77,27 +68,116 @@
       font-size: 0.9rem;
       display: none;
     }
-
     .status-running { background: #fef9c3; color: #854d0e; }
     .status-done    { background: #dcfce7; color: #166534; }
     .status-error   { background: #fee2e2; color: #991b1b; }
 
+    /* Toolbar shown after scrape */
+    #toolbar {
+      display: none;
+      margin-top: 20px;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    #toolbar.visible { display: flex; }
+
+    .toolbar-sep {
+      width: 1px;
+      height: 28px;
+      background: #e5e7eb;
+      margin: 0 4px;
+    }
+
+    #selected-count {
+      font-size: 0.85rem;
+      color: #6b7280;
+      margin-left: auto;
+    }
+
+    /* Download format toggle */
+    .format-group {
+      display: flex;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .format-group label {
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      color: #374151;
+      background: white;
+      transition: background 0.1s, color 0.1s;
+      user-select: none;
+    }
+    .format-group input[type=radio] { display: none; }
+    .format-group input[type=radio]:checked + label {
+      background: #6366f1;
+      color: white;
+    }
+    .format-group label:not(:last-child) { border-right: 1px solid #d1d5db; }
+
+    /* Gallery */
     #gallery {
-      margin-top: 28px;
+      margin-top: 24px;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
       gap: 12px;
     }
 
-    #gallery img {
-      width: 100%;
-      border-radius: 6px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    .page-tile {
+      position: relative;
       cursor: pointer;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
       transition: transform 0.15s;
     }
+    .page-tile:hover { transform: scale(1.03); }
+    .page-tile img { display: block; width: 100%; }
 
-    #gallery img:hover { transform: scale(1.03); }
+    /* Checkbox overlay */
+    .page-tile .check {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.85);
+      border: 2px solid #d1d5db;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .page-tile.selected .check {
+      background: #6366f1;
+      border-color: #6366f1;
+    }
+    .page-tile.selected .check::after {
+      content: '';
+      display: block;
+      width: 6px;
+      height: 10px;
+      border: 2px solid white;
+      border-top: none;
+      border-left: none;
+      transform: rotate(45deg) translate(-1px, -1px);
+    }
+
+    .page-tile .page-label {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.45);
+      color: white;
+      font-size: 0.75rem;
+      text-align: center;
+      padding: 3px 0;
+    }
 
     /* Lightbox */
     #lightbox {
@@ -109,16 +189,13 @@
       align-items: center;
       justify-content: center;
     }
-
     #lightbox.open { display: flex; }
-
     #lightbox img {
       max-width: 90vw;
       max-height: 90vh;
       border-radius: 6px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.5);
     }
-
     #lightbox-close {
       position: absolute;
       top: 20px;
@@ -126,105 +203,235 @@
       color: white;
       font-size: 2rem;
       cursor: pointer;
-      line-height: 1;
     }
   </style>
 </head>
 <body>
 
-  <h1>Amazon Sample Scraper</h1>
-  <p class="subtitle">Paste an Amazon book URL to download the Read Sample pages</p>
+<h1>Amazon Sample Scraper</h1>
+<p class="subtitle">Paste an Amazon book URL to download the Read Sample pages</p>
 
-  <div class="card">
-    <div class="input-row">
-      <input id="url-input" type="text" placeholder="https://www.amazon.com/dp/... or https://a.co/..." />
-      <button id="scrape-btn" onclick="startScrape()">Scrape</button>
+<div class="card">
+  <!-- URL input -->
+  <div class="input-row">
+    <input id="url-input" type="text" placeholder="https://www.amazon.com/dp/... or https://a.co/..." />
+    <button id="scrape-btn" class="btn btn-primary" onclick="startScrape()">Scrape</button>
+  </div>
+
+  <!-- Status -->
+  <div id="status-box"></div>
+
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <button class="btn btn-outline" onclick="selectAll()">Select All</button>
+    <button class="btn btn-outline" onclick="selectNone()">Deselect All</button>
+    <div class="toolbar-sep"></div>
+
+    <div class="format-group">
+      <input type="radio" name="fmt" id="fmt-pdf" value="pdf" checked />
+      <label for="fmt-pdf">PDF</label>
+      <input type="radio" name="fmt" id="fmt-zip" value="zip" />
+      <label for="fmt-zip">ZIP (JPGs)</label>
     </div>
 
-    <div id="status-box"></div>
-    <div id="gallery"></div>
+    <button class="btn btn-success" onclick="downloadSelected()">Download Selected</button>
+    <button class="btn btn-success" onclick="downloadAll()">Download All</button>
+
+    <span id="selected-count"></span>
   </div>
 
-  <div id="lightbox" onclick="closeLightbox()">
-    <span id="lightbox-close">&times;</span>
-    <img id="lightbox-img" src="" alt="Page" />
-  </div>
+  <!-- Gallery -->
+  <div id="gallery"></div>
+</div>
 
-  <script>
-    let pollTimer = null;
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <span id="lightbox-close">&times;</span>
+  <img id="lightbox-img" src="" alt="" />
+</div>
 
-    async function startScrape() {
-      const url = document.getElementById('url-input').value.trim();
-      if (!url) return;
+<script>
+  let currentAsin = null;
+  let allFiles = [];
+  let pollTimer = null;
 
-      const btn = document.getElementById('scrape-btn');
-      btn.disabled = true;
-      document.getElementById('gallery').innerHTML = '';
-      showStatus('running', 'Starting scrape — a browser window will open...');
+  // ---------------------------------------------------------------- //
+  // Scrape
+  // ---------------------------------------------------------------- //
 
-      const resp = await fetch('/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
-      });
-      const { job_id } = await resp.json();
-      pollStatus(job_id);
-    }
+  async function startScrape() {
+    const url = document.getElementById('url-input').value.trim();
+    if (!url) return;
 
-    function pollStatus(jobId) {
-      if (pollTimer) clearInterval(pollTimer);
-      pollTimer = setInterval(async () => {
-        const resp = await fetch(`/status/${jobId}`);
-        const job = await resp.json();
+    document.getElementById('scrape-btn').disabled = true;
+    document.getElementById('gallery').innerHTML = '';
+    document.getElementById('toolbar').classList.remove('visible');
+    currentAsin = null;
+    allFiles = [];
 
-        if (job.status === 'running' || job.status === 'queued') {
-          showStatus('running', `Status: ${job.status}...`);
-        } else if (job.status === 'done') {
-          clearInterval(pollTimer);
-          showStatus('done', `Done! ${job.pages} pages scraped for ASIN ${job.asin}`);
-          document.getElementById('scrape-btn').disabled = false;
-          loadGallery(job.asin);
-        } else if (job.status === 'error') {
-          clearInterval(pollTimer);
-          showStatus('error', `Error: ${job.error}`);
-          document.getElementById('scrape-btn').disabled = false;
-        }
-      }, 1500);
-    }
+    showStatus('running', 'Starting scrape — a browser window will open...');
 
-    async function loadGallery(asin) {
-      const resp = await fetch(`/pages/${asin}`);
-      const data = await resp.json();
-      const gallery = document.getElementById('gallery');
-      gallery.innerHTML = '';
-      for (const file of data.files) {
-        const img = document.createElement('img');
-        img.src = `/pages/${asin}/${file}`;
-        img.alt = file;
-        img.onclick = () => openLightbox(img.src);
-        gallery.appendChild(img);
-      }
-    }
-
-    function showStatus(type, msg) {
-      const box = document.getElementById('status-box');
-      box.className = `status-${type}`;
-      box.style.display = 'block';
-      box.textContent = msg;
-    }
-
-    function openLightbox(src) {
-      document.getElementById('lightbox-img').src = src;
-      document.getElementById('lightbox').classList.add('open');
-    }
-
-    function closeLightbox() {
-      document.getElementById('lightbox').classList.remove('open');
-    }
-
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeLightbox();
+    const resp = await fetch('/scrape', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
     });
-  </script>
+    const { job_id } = await resp.json();
+    pollStatus(job_id);
+  }
+
+  function pollStatus(jobId) {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      const resp = await fetch(`/status/${jobId}`);
+      const job = await resp.json();
+
+      if (job.status === 'running' || job.status === 'queued') {
+        showStatus('running', `Status: ${job.status}...`);
+      } else if (job.status === 'done') {
+        clearInterval(pollTimer);
+        showStatus('done', `Done! ${job.pages} pages scraped for ASIN ${job.asin}`);
+        document.getElementById('scrape-btn').disabled = false;
+        loadGallery(job.asin);
+      } else if (job.status === 'error') {
+        clearInterval(pollTimer);
+        showStatus('error', `Error: ${job.error}`);
+        document.getElementById('scrape-btn').disabled = false;
+      }
+    }, 1500);
+  }
+
+  // ---------------------------------------------------------------- //
+  // Gallery
+  // ---------------------------------------------------------------- //
+
+  async function loadGallery(asin) {
+    currentAsin = asin;
+    const resp = await fetch(`/pages/${asin}`);
+    const data = await resp.json();
+    allFiles = data.files;
+
+    const gallery = document.getElementById('gallery');
+    gallery.innerHTML = '';
+
+    for (const file of allFiles) {
+      const tile = document.createElement('div');
+      tile.className = 'page-tile';
+      tile.dataset.file = file;
+
+      const check = document.createElement('div');
+      check.className = 'check';
+
+      const img = document.createElement('img');
+      img.src = `/pages/${asin}/${file}`;
+      img.alt = file;
+      img.addEventListener('click', (e) => {
+        // Shift-click or checkbox area → toggle selection
+        if (e.target === check || e.shiftKey) {
+          toggleSelect(tile);
+        } else {
+          openLightbox(img.src);
+        }
+      });
+
+      const label = document.createElement('div');
+      label.className = 'page-label';
+      label.textContent = file.replace('page_', 'p').replace('.jpg', '');
+
+      tile.appendChild(check);
+      tile.appendChild(img);
+      tile.appendChild(label);
+      tile.addEventListener('click', (e) => {
+        if (e.target === img) return; // handled above
+        toggleSelect(tile);
+      });
+
+      gallery.appendChild(tile);
+    }
+
+    document.getElementById('toolbar').classList.add('visible');
+    updateCount();
+  }
+
+  function toggleSelect(tile) {
+    tile.classList.toggle('selected');
+    updateCount();
+  }
+
+  function selectAll() {
+    document.querySelectorAll('.page-tile').forEach(t => t.classList.add('selected'));
+    updateCount();
+  }
+
+  function selectNone() {
+    document.querySelectorAll('.page-tile').forEach(t => t.classList.remove('selected'));
+    updateCount();
+  }
+
+  function updateCount() {
+    const n = document.querySelectorAll('.page-tile.selected').length;
+    document.getElementById('selected-count').textContent =
+      n ? `${n} of ${allFiles.length} selected` : '';
+  }
+
+  function selectedFiles() {
+    return [...document.querySelectorAll('.page-tile.selected')].map(t => t.dataset.file);
+  }
+
+  // ---------------------------------------------------------------- //
+  // Download
+  // ---------------------------------------------------------------- //
+
+  function getFormat() {
+    return document.querySelector('input[name="fmt"]:checked').value;
+  }
+
+  async function triggerDownload(files) {
+    if (!files.length) { alert('No pages selected.'); return; }
+    const fmt = getFormat();
+    const resp = await fetch(`/download/${currentAsin}/${fmt}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files })
+    });
+    if (!resp.ok) { alert('Download failed.'); return; }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentAsin}_pages.${fmt === 'zip' ? 'zip' : 'pdf'}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadSelected() { triggerDownload(selectedFiles()); }
+  function downloadAll()      { triggerDownload(allFiles); }
+
+  // ---------------------------------------------------------------- //
+  // Lightbox
+  // ---------------------------------------------------------------- //
+
+  function openLightbox(src) {
+    document.getElementById('lightbox-img').src = src;
+    document.getElementById('lightbox').classList.add('open');
+  }
+
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('open');
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+  // ---------------------------------------------------------------- //
+  // Helpers
+  // ---------------------------------------------------------------- //
+
+  function showStatus(type, msg) {
+    const box = document.getElementById('status-box');
+    box.className = `status-${type}`;
+    box.style.display = 'block';
+    box.textContent = msg;
+  }
+</script>
 </body>
 </html>
