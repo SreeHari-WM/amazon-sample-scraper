@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Amazon Sample Scraper</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f3f4f6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      color: #111;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      font-size: 0.9rem;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      padding: 28px;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input[type="text"]:focus { border-color: #6366f1; }
+
+    button {
+      padding: 10px 20px;
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    button:hover { background: #4f46e5; }
+    button:disabled { background: #a5b4fc; cursor: not-allowed; }
+
+    #status-box {
+      margin-top: 20px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    .status-running { background: #fef9c3; color: #854d0e; }
+    .status-done    { background: #dcfce7; color: #166534; }
+    .status-error   { background: #fee2e2; color: #991b1b; }
+
+    #gallery {
+      margin-top: 28px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+    }
+
+    #gallery img {
+      width: 100%;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    #gallery img:hover { transform: scale(1.03); }
+
+    /* Lightbox */
+    #lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #lightbox.open { display: flex; }
+
+    #lightbox img {
+      max-width: 90vw;
+      max-height: 90vh;
+      border-radius: 6px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    #lightbox-close {
+      position: absolute;
+      top: 20px;
+      right: 28px;
+      color: white;
+      font-size: 2rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Amazon Sample Scraper</h1>
+  <p class="subtitle">Paste an Amazon book URL to download the Read Sample pages</p>
+
+  <div class="card">
+    <div class="input-row">
+      <input id="url-input" type="text" placeholder="https://www.amazon.com/dp/... or https://a.co/..." />
+      <button id="scrape-btn" onclick="startScrape()">Scrape</button>
+    </div>
+
+    <div id="status-box"></div>
+    <div id="gallery"></div>
+  </div>
+
+  <div id="lightbox" onclick="closeLightbox()">
+    <span id="lightbox-close">&times;</span>
+    <img id="lightbox-img" src="" alt="Page" />
+  </div>
+
+  <script>
+    let pollTimer = null;
+
+    async function startScrape() {
+      const url = document.getElementById('url-input').value.trim();
+      if (!url) return;
+
+      const btn = document.getElementById('scrape-btn');
+      btn.disabled = true;
+      document.getElementById('gallery').innerHTML = '';
+      showStatus('running', 'Starting scrape — a browser window will open...');
+
+      const resp = await fetch('/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const { job_id } = await resp.json();
+      pollStatus(job_id);
+    }
+
+    function pollStatus(jobId) {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(async () => {
+        const resp = await fetch(`/status/${jobId}`);
+        const job = await resp.json();
+
+        if (job.status === 'running' || job.status === 'queued') {
+          showStatus('running', `Status: ${job.status}...`);
+        } else if (job.status === 'done') {
+          clearInterval(pollTimer);
+          showStatus('done', `Done! ${job.pages} pages scraped for ASIN ${job.asin}`);
+          document.getElementById('scrape-btn').disabled = false;
+          loadGallery(job.asin);
+        } else if (job.status === 'error') {
+          clearInterval(pollTimer);
+          showStatus('error', `Error: ${job.error}`);
+          document.getElementById('scrape-btn').disabled = false;
+        }
+      }, 1500);
+    }
+
+    async function loadGallery(asin) {
+      const resp = await fetch(`/pages/${asin}`);
+      const data = await resp.json();
+      const gallery = document.getElementById('gallery');
+      gallery.innerHTML = '';
+      for (const file of data.files) {
+        const img = document.createElement('img');
+        img.src = `/pages/${asin}/${file}`;
+        img.alt = file;
+        img.onclick = () => openLightbox(img.src);
+        gallery.appendChild(img);
+      }
+    }
+
+    function showStatus(type, msg) {
+      const box = document.getElementById('status-box');
+      box.className = `status-${type}`;
+      box.style.display = 'block';
+      box.textContent = msg;
+    }
+
+    function openLightbox(src) {
+      document.getElementById('lightbox-img').src = src;
+      document.getElementById('lightbox').classList.add('open');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('open');
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeLightbox();
+    });
+  </script>
+</body>
+</html>
