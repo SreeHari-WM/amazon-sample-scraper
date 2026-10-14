@@ -73,10 +73,10 @@ async def run_scrape(job_id: str, url: str):
             async def on_response(response):
                 if "cloudfront.net" not in response.url:
                     return
-                m = re.search(r"\.S(\d{3})\.", response.url)
+                m = re.search(r"\.S([0-9A-Z]{3})\.", response.url)
                 if not m:
                     return
-                pn = int(m.group(1))
+                pn = int(m.group(1), 36)
                 if pn in captured:
                     return
                 try:

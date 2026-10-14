@@ -83,104 +83,59 @@ async def resolve_and_open(page, url: str):
     return page, asin
 
 
+def b36_to_int(code: str) -> int:
+    """Convert a 3-char base-36 page code (e.g. '00A' -> 10, '03L' -> 129)."""
+    return int(code, 36)
+
+
 async def scrape_reader(reader_page, output_dir: Path, captured: dict):
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Wait for the initial burst of images to load
+    # Wait for the reader to fully render (scroll layout — all pages in DOM at once)
     await reader_page.wait_for_timeout(5_000)
 
-    # Locate the reader iframe
-    reader_frame = None
-    iframe_elem = None
-    for sel in ['iframe[src*="read.amazon"]', 'iframe[id*="kindle"]', '#KindleReaderIFrame']:
-        try:
-            elem = await reader_page.query_selector(sel)
-            if elem:
-                iframe_elem = elem
-                reader_frame = await elem.content_frame()
-                print(f"[+] Found reader iframe ({sel})")
-                break
-        except Exception:
+    # ------------------------------------------------------------------ #
+    # Scroll to bottom to ensure all images are loaded
+    # ------------------------------------------------------------------ #
+    print("[+] Scrolling to load all pages...")
+    await reader_page.evaluate("""() => {
+        const el = document.querySelector('.litb-reading-area') || document.scrollingElement;
+        if (el) el.scrollTop = el.scrollHeight;
+    }""")
+    await reader_page.wait_for_timeout(3_000)
+
+    # ------------------------------------------------------------------ #
+    # Read all page images directly from the DOM using data-page attribute
+    # ------------------------------------------------------------------ #
+    print("[+] Collecting page image URLs from DOM...")
+    pages = await reader_page.evaluate("""() => {
+        return [...document.querySelectorAll('[data-page] img[src*="cloudfront"]')]
+            .map(img => ({
+                page: parseInt(img.closest('[data-page]').getAttribute('data-page')),
+                src: img.src
+            }))
+            .filter(p => p.src && p.page > 0);
+    }""")
+
+    print(f"[+] Found {len(pages)} pages in DOM")
+
+    # Merge with anything already captured via interception, prefer DOM src
+    # (interception may have missed pages 10+ due to base-36 encoding)
+    api_ctx = reader_page.context.request
+    for item in pages:
+        pn = item["page"]
+        src = item["src"]
+        if pn in captured:
             continue
-
-    # ------------------------------------------------------------------ #
-    # Navigate through all pages to trigger lazy-loaded images
-    # ------------------------------------------------------------------ #
-    async def advance():
-        # Click the right portion of the iframe to go to next page
-        if iframe_elem:
-            try:
-                box = await iframe_elem.bounding_box()
-                if box:
-                    await reader_page.mouse.click(
-                        box["x"] + box["width"] * 0.75,
-                        box["y"] + box["height"] * 0.5,
-                    )
-                    return
-            except Exception:
-                pass
-        # Fallback: dispatch ArrowRight inside the frame
-        if reader_frame:
-            try:
-                await reader_frame.evaluate("""() => {
-                    document.dispatchEvent(new KeyboardEvent('keydown',
-                        {key:'ArrowRight', keyCode:39, bubbles:true}));
-                }""")
-            except Exception:
-                pass
-
-    print("[+] Navigating to load all pages...")
-    stalled = 0
-    prev_count = len(captured)
-
-    for _ in range(200):  # generous upper bound
-        await advance()
-        await reader_page.wait_for_timeout(800)
-
-        if len(captured) > prev_count:
-            stalled = 0
-            prev_count = len(captured)
-        else:
-            stalled += 1
-            # After 8 consecutive advances with no new image, assume we're done
-            if stalled >= 8:
-                break
-
-    print(f"[+] Navigation complete — {len(captured)} pages intercepted")
-
-    # ------------------------------------------------------------------ #
-    # DOM fallback: download any img src URLs not caught by interception
-    # ------------------------------------------------------------------ #
-    if reader_frame:
         try:
-            srcs = await reader_frame.evaluate("""() =>
-                [...document.querySelectorAll('img[alt]')]
-                    .filter(img => /Page \\d+/.test(img.alt) && img.src.includes('cloudfront'))
-                    .map(img => img.src)
-            """)
-            missing = []
-            api_ctx = reader_page.context.request
-            for src in srcs:
-                m = re.search(r"\.S(\d{3})\.", src)
-                if not m:
-                    continue
-                pn = int(m.group(1))
-                if pn in captured:
-                    continue
-                missing.append((pn, src))
-
-            if missing:
-                print(f"[+] Downloading {len(missing)} pages missed by interception...")
-                for pn, src in missing:
-                    try:
-                        resp = await api_ctx.get(src)
-                        if resp.ok:
-                            captured[pn] = await resp.body()
-                            print(f"[+] Downloaded page {pn} ({len(captured[pn])//1024} KB)")
-                    except Exception as e:
-                        print(f"[!] Could not download page {pn}: {e}")
+            resp = await api_ctx.get(src)
+            if resp.ok:
+                captured[pn] = await resp.body()
+                print(f"[+] Downloaded page {pn} ({len(captured[pn])//1024} KB)")
+            else:
+                print(f"[!] HTTP {resp.status} for page {pn}")
         except Exception as e:
-            print(f"[!] DOM scan failed: {e}")
+            print(f"[!] Could not download page {pn}: {e}")
 
     if not captured:
         print("[!] No pages captured")
@@ -238,10 +193,10 @@ async def main():
         async def on_response(response):
             if "cloudfront.net" not in response.url:
                 return
-            m = re.search(r"\.S(\d{3})\.", response.url)
+            m = re.search(r"\.S([0-9A-Z]{3})\.", response.url)
             if not m:
                 return
-            pn = int(m.group(1))
+            pn = b36_to_int(m.group(1))
             if pn in captured:
                 return
             try:
